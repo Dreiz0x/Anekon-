@@ -1,4 +1,4 @@
-name: 🚀 Anekon - Android CI/CD with AI AutoFix
+name: name: 🚀 Anekon - Android CI/CD with AI AutoFix
 
 on:
   push:
@@ -28,6 +28,8 @@ jobs:
   lint:
     name: 📋 Lint & Code Quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: write    # <-- LA LLAVE MAESTRA PARA QUE GITHUB TE DEJE GUARDAR
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -50,18 +52,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: 🛠️ Rescue & Generate Wrapper JAR
+      - name: 🛠️ Rescue & Generate Full Wrapper
         run: |
-          # Si el jar no existe, lo generamos usando el gradle del sistema del runner
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "⚠️ Wrapper JAR missing! Generating..."
+          # Si falta el ejecutable gradlew, generamos TODO el ecosistema wrapper
+          if [ ! -f "gradlew" ]; then
+            echo "⚠️ Wrapper missing! Generating full power..."
             gradle wrapper --gradle-version 8.2
           fi
           chmod +x gradlew
 
+      - name: 💾 Save Full Wrapper back to Repo
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Fix: Recovered full Gradle Wrapper ecosystem via CI Rescue"
+          file_pattern: 'gradlew gradlew.bat gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties'
+
       - name: Run Android Lint
         run: ./gradlew lintDebug --no-daemon
         continue-on-error: true
+        
         
       - name: Run Detekt (Kotlin static analysis)
         run: ./gradlew detekt --no-daemon
