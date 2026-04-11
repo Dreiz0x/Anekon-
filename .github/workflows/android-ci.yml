@@ -46,9 +46,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.gradle/caches
-            \~/.gradle/wrapper
-          key: \( {{ runner.os }}-gradle- \){{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -69,7 +69,7 @@ jobs:
       - name: Run Android Lint
         run: ./gradlew lintDebug --no-daemon
         continue-on-error: true
-
+        
       - name: Run Detekt (Kotlin static analysis)
         run: ./gradlew detekt --no-daemon
         continue-on-error: true
@@ -118,9 +118,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.gradle/caches
-            \~/.gradle/wrapper
-          key: \( {{ runner.os }}-gradle- \){{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -128,9 +128,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.android/build-cache
-            \~/Library/Caches/android/sdk
-          key: \( {{ runner.os }}-android-sdk- \){{ env.ANDROID_COMPILE_SDK }}
+            ~/.android/build-cache
+            ~/Library/Caches/android/sdk
+          key: ${{ runner.os }}-android-sdk-${{ env.ANDROID_COMPILE_SDK }}
 
       - name: Grant execute permission
         run: chmod +x gradlew
@@ -186,9 +186,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.gradle/caches
-            \~/.gradle/wrapper
-          key: \( {{ runner.os }}-gradle- \){{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -238,17 +238,13 @@ jobs:
 
       - name: Create Emulator
         run: |
-          # List installed images (for debugging)
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed | grep -E 'system-images|android-[0-9]+' || true
-          
+          echo "A $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed | grep -E 'system-images|android-[0-9]+'" | bash
           echo "no" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "system-images;android-34;google_apis;x86_64"
           echo "no" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
-          
           $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager create avd -n test-avd -k "system-images;android-34;google_apis;x86_64" --force
-          
-          echo "hw.arch=x86_64" >> \~/.android/avd/test-avd/config.ini
-          echo "hw.cpu.arch=x86_64" >> \~/.android/avd/test-avd/config.ini
-          echo "hw.ramSize=4096" >> \~/.android/avd/test-avd/config.ini
+          echo "hw.arch=x86_64" >> ~/.android/avd/test-avd/config.ini
+          echo "hw.cpu.arch=x86_64" >> ~/.android/avd/test-avd/config.ini
+          echo "hw.ramSize=4096" >> ~/.android/avd/test-avd/config.ini
         continue-on-error: true
 
       - name: Launch Emulator
@@ -270,7 +266,7 @@ jobs:
           retention-days: 7
 
   # ============================================
-  # JOB 5: Build Release APK (on main/develop)
+  # JOB 5: Build Release APK
   # ============================================
   build-release:
     name: 📦 Build Release APK
@@ -293,9 +289,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.gradle/caches
-            \~/.gradle/wrapper
-          key: \( {{ runner.os }}-gradle- \){{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -349,7 +345,7 @@ jobs:
           retention-days: 30
 
   # ============================================
-  # JOB 6: AI Code Analysis (on failure)
+  # JOB 6: AI Code Analysis
   # ============================================
   ai-analysis:
     name: 🤖 AI Code Analysis
@@ -397,51 +393,24 @@ jobs:
             ERRORS=$(cat reports/build/build_info.txt)
           fi
 
-          LINT_ERRORS=""
           if [ -d "reports/lint" ]; then
             LINT_ERRORS=$(find reports/lint -name "*.xml" -exec grep -h "error=" {} \; 2>/dev/null | head -20)
           fi
 
-          TEST_FAILURES=""
           if [ -d "reports/tests" ]; then
             TEST_FAILURES=$(find reports/tests -name "*.xml" -exec grep -l "failures" {} \; 2>/dev/null | head -5)
           fi
 
           PROMPT="You are an expert Android/Kotlin developer. Analyze the build failures and provide actionable fixes.
-
           BUILD STATUS: ${{ job.status }}
           BRANCH: ${{ github.ref }}
           COMMIT: ${{ github.sha }}
+          BUILD INFO: $ERRORS
+          LINT ERRORS: $LINT_ERRORS
+          TEST FAILURES: $TEST_FAILURES
+          Please respond in JSON format ONLY: {\"root_cause\":\"...\",\"severity\":\"high\",\"files_to_fix\":[],\"fixes\":[{\"file\":\"\",\"original_code\":\"\",\"fixed_code\":\"\",\"explanation\":\"\"}],\"prevention_tips\":[],\"confidence\":0.95}"
 
-          BUILD INFO:
-          $ERRORS
-
-          LINT ERRORS (if any):
-          $LINT_ERRORS
-
-          TEST FAILURES:
-          $TEST_FAILURES
-
-          Please respond in this JSON format ONLY (no markdown, pure JSON):
-          {
-            \"root_cause\": \"Brief explanation of the main failure\",
-            \"severity\": \"high|medium|low\",
-            \"files_to_fix\": [\"path/to/file.kt\", ...],
-            \"fixes\": [
-              {
-                \"file\": \"path/to/file.kt\",
-                \"original_code\": \"exact code to find (keep minimal)\",
-                \"fixed_code\": \"exact replacement code\",
-                \"explanation\": \"why this fix is needed\"
-              }
-            ],
-            \"prevention_tips\": [\"tip1\", \"tip2\", ...],
-            \"confidence\": 0.95
-          }"
-
-          echo "Calling MiniMax AI API..."
-
-          API_RESPONSE=\( (curl -s -X POST "https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId= \){MINIMAX_GROUP_ID}" \
+          API_RESPONSE=$(curl -s -X POST "https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId=${MINIMAX_GROUP_ID}" \
             -H "Authorization: Bearer ${MINIMAX_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "{
@@ -458,11 +427,8 @@ jobs:
             AI_CONTENT=$(echo "$API_RESPONSE" | jq -r '.choices[0].messages[-1].content')
             echo "$AI_CONTENT" > ai_analysis.json
           else
-            echo "{\"error\": \"API call failed\", \"raw_response\": $(echo "$API_RESPONSE" | jq -c .)}" > ai_analysis.json
+            echo "{\"error\": \"API call failed\", \"raw_response\": $(echo $API_RESPONSE | jq -r '.')}" > ai_analysis.json
           fi
-
-          echo "Analysis complete. Result:"
-          cat ai_analysis.json | jq -r '.root_cause // "No analysis available"'
 
           ANALYSIS=$(cat ai_analysis.json | jq -r '.root_cause // "No analysis"')
           HAS_FIX=$(cat ai_analysis.json | jq -r 'if .fixes != null and (.fixes | length) > 0 then "true" else "false" end')
@@ -478,22 +444,18 @@ jobs:
           retention-days: 30
 
   # ============================================
-  # JOB 7: Apply AI Fixes (CORREGIDO ✅)
+  # JOB 7: Apply AI Fixes
   # ============================================
   apply-ai-fixes:
     name: 🔧 Apply AI Fixes
     runs-on: ubuntu-latest
     needs: ai-analysis
     if: needs.ai-analysis.outputs.has_fix == 'true'
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download AI Analysis
         uses: actions/download-artifact@v4
@@ -504,7 +466,6 @@ jobs:
       - name: Apply Fixes
         run: |
           echo "=== Applying AI-Generated Fixes ==="
-
           cat analysis/ai_analysis.json | jq -r '.'
 
           git config user.name "Anekon AI Bot"
@@ -514,45 +475,17 @@ jobs:
 
           cat > AI_FIX_REPORT.md << 'REPORT'
           # 🤖 AI AutoFix Report
-
-          Generated by Anekon AI on $(date)
-
+          Generated by Anekon AI on `date`
           ## Analysis Summary
           REPORT
 
           cat analysis/ai_analysis.json | jq -r '.root_cause' >> AI_FIX_REPORT.md
-
           echo "" >> AI_FIX_REPORT.md
           echo "## Severity: $(cat analysis/ai_analysis.json | jq -r '.severity')" >> AI_FIX_REPORT.md
           echo "## Confidence: $(cat analysis/ai_analysis.json | jq -r '.confidence')%" >> AI_FIX_REPORT.md
 
-          echo "" >> AI_FIX_REPORT.md
-          echo "## Files to Fix" >> AI_FIX_REPORT.md
-          cat analysis/ai_analysis.json | jq -r '.files_to_fix[]' 2>/dev/null | sed 's/^/- `/' | sed 's/$/`/' >> AI_FIX_REPORT.md
-
-          echo "" >> AI_FIX_REPORT.md
-          echo "## Recommended Fixes" >> AI_FIX_REPORT.md
-          cat analysis/ai_analysis.json | jq -c '.fixes[]' 2>/dev/null | while read -r fix; do
-            echo "### File: $(echo "$fix" | jq -r '.file')" >> AI_FIX_REPORT.md
-            echo "**Explanation:** $(echo "$fix" | jq -r '.explanation')" >> AI_FIX_REPORT.md
-            echo '```kotlin' >> AI_FIX_REPORT.md
-            echo "// Original:" >> AI_FIX_REPORT.md
-            echo "$(echo "$fix" | jq -r '.original_code')" >> AI_FIX_REPORT.md
-            echo "" >> AI_FIX_REPORT.md
-            echo "// Fixed:" >> AI_FIX_REPORT.md
-            echo "$(echo "$fix" | jq -r '.fixed_code')" >> AI_FIX_REPORT.md
-            echo '```' >> AI_FIX_REPORT.md
-          done
-
-          echo "" >> AI_FIX_REPORT.md
-          echo "## Prevention Tips" >> AI_FIX_REPORT.md
-          cat analysis/ai_analysis.json | jq -r '.prevention_tips[]' 2>/dev/null | sed 's/^/- /' >> AI_FIX_REPORT.md
-
           git add AI_FIX_REPORT.md
           git commit -m "🤖 docs: AI AutoFix report for build failure [skip ci]"
-
-          echo "=== Fix branch created ==="
-          git log --oneline -1
 
       - name: Push Fix Branch
         uses: ad-m/github-push-action@v0.6.0
@@ -560,18 +493,15 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: fix/ai-autofix-${{ github.run_number }}
 
-      - name: Create PR (usando GitHub CLI)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create PR
         run: |
-          echo "🚀 Creando Pull Request automática..."
-
-          gh pr create \
-            --title "🤖 AI AutoFix #${{ github.run_number }} - $(cat analysis/ai_analysis.json | jq -r '.root_cause' | head -c 80)" \
-            --body-file AI_FIX_REPORT.md \
-            --head "fix/ai-autofix-${{ github.run_number }}" \
-            --base "${{ github.ref_name }}" \
-            --label "ai-autofix" \
-            --assignee "${{ github.actor }}"
-
-          echo "✅ PR creada automáticamente!"
+          echo "Creating pull request..."
+          PR_BODY="## 🤖 AI AutoFix Report\n\nThis PR was automatically created by Anekon AI.\n\n### Summary\n$(cat analysis/ai_analysis.json | jq -r '.root_cause')\n\n*Generated by Anekon AI Bot*"
+          
+          PR_RESPONSE=$(curl -s -X POST "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"title\":\"🤖 AI AutoFix: Build Failure Resolution\",\"body\":\"$PR_BODY\",\"head\":\"fix/ai-autofix-${{ github.run_number }}\",\"base\":\"${{ github.ref_name }}\"}")
+          
+          echo "Response: $PR_RESPONSE"
+          
