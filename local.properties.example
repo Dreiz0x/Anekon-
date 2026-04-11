@@ -1,0 +1,10 @@
+## This file is an example for local development configuration.
+## DO NOT commit this file to GitHub - it contains sensitive paths.
+## Copy this file to local.properties and customize as needed.
+
+## Android SDK
+sdk.dir=/Users/youruser/Library/Android/sdk
+
+## Optional: Override API keys (NOT RECOMMENDED - Use Settings screen in app instead)
+# MINIMAX_API_KEY=your_api_key_here
+# OPENAI_API_KEY=your_api_key_here
