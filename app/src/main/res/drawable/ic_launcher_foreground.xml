@@ -4,19 +4,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Letter A stylized -->
+    
     <path
         android:fillColor="#FFC107"
         android:pathData="M54,28L30,80h12l4,-12h16l4,12h12L54,28zM48,60l6,-20l6,20H48z"/>
-    <!-- Accent dots -->
-    <circle
+        
+    <path
         android:fillColor="#4DB6AC"
-        android:centerX="75"
-        android:centerY="35"
-        android:radius="4"/>
-    <circle
+        android:pathData="M71,35 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"/>
+        
+    <path
         android:fillColor="#4DB6AC"
-        android:centerX="33"
-        android:centerY="35"
-        android:radius="4"/>
+        android:pathData="M29,35 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0"/>
 </vector>
