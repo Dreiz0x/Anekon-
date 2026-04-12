@@ -132,8 +132,13 @@ jobs:
             ~/Library/Caches/android/sdk
           key: ${{ runner.os }}-android-sdk-${{ env.ANDROID_COMPILE_SDK }}
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
+      - name: 🛠️ Ensure Wrapper & Grant Permissions
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "⚠️ gradlew no encontrado en este job. Inyectando..."
+            gradle wrapper --gradle-version 8.2
+          fi
+          chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
@@ -192,9 +197,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
+      - name: 🛠️ Ensure Wrapper & Grant Permissions
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "⚠️ gradlew no encontrado en este job. Inyectando..."
+            gradle wrapper --gradle-version 8.2
+          fi
+          chmod +x gradlew
+          
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon
 
@@ -295,9 +305,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
+      - name: 🛠️ Ensure Wrapper & Grant Permissions
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "⚠️ gradlew no encontrado en este job. Inyectando..."
+            gradle wrapper --gradle-version 8.2
+          fi
+          chmod +x gradlew
+        
       - name: Decode Keystore
         if: env.KEYSTORE_BASE64 != ''
         env:
