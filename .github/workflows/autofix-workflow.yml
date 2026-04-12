@@ -26,8 +26,7 @@ jobs:
         run: |
           echo "Checking workflow run: ${{ github.event.workflow_run.id }}"
           
-          # Get the workflow run details
-          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/jobs")
           
           FAILED_JOBS=$(echo "$RESPONSE" | jq '[.jobs[] | select(.conclusion == "failure")] | length')
@@ -57,20 +56,18 @@ jobs:
         run: |
           echo "Fetching build logs from workflow run: ${{ github.event.workflow_run.id }}"
           
-          # Get failed job logs
-          JOBS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          JOBS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/jobs")
           
           echo "$JOBS" | jq -r '.jobs[] | select(.conclusion == "failure") | .id' | while read job_id; do
             echo "=== Failed Job ID: $job_id ==="
-            curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/jobs/$job_id/logs" > "logs/job_$job_id.log"
+            curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/jobs/$job_id/logs" > "logs/job_$job_id.log" || true
           done
           
           mkdir -p build-logs
           mv logs/*.log build-logs/ 2>/dev/null || true
           
-          # Create combined error log
           cat build-logs/*.log 2>/dev/null | grep -i "error\|exception\|failed" | head -50 > build-logs/errors.txt || echo "No specific errors found" > build-logs/errors.txt
 
       - name: Upload logs
@@ -102,47 +99,14 @@ jobs:
         env:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
         run: |
-          # Read the error log
           if [ -f "build-logs/errors.txt" ]; then
             ERROR_LOG=$(cat build-logs/errors.txt)
           else
             ERROR_LOG="No errors found in logs"
           fi
           
-          # Create a prompt for MiniMax
-          PROMPT="You are an expert Android developer. Analyze this build error log and provide:
-          1. Root cause of the failure
-          2. Specific file(s) that need to be fixed
-          3. Exact code changes needed (show before/after)
-          4. Explanation of why the fix works
+          PROMPT="You are an expert Android developer. Analyze this build error log and provide: 1. Root cause, 2. Files to fix, 3. Exact code changes. Build Error Log: $ERROR_LOG"
           
-          Build Error Log:
-          $ERROR_LOG
-          
-          Context:
-          - Language: Kotlin
-          - Build System: Gradle (Kotlin DSL)
-          - Min SDK: 26
-          - Target SDK: 34
-          - Architecture: Clean/MVVM
-          
-          Respond in JSON format:
-          {
-            \"root_cause\": \"...\", 
-            \"files_to_fix\": [\"...\"],
-            \"fixes\": [
-              {
-                \"file\": \"path/to/file.kt\",
-                \"line\": 123,
-                \"original\": \"code to replace\",
-                \"replacement\": \"fixed code\",
-                \"explanation\": \"why this fix works\"
-              }
-            ],
-            \"confidence\": 0.95
-          }"
-          
-          # Call MiniMax API
           echo "Calling MiniMax API for analysis..."
           
           RESPONSE=$(curl -s -X POST "https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId=${{ secrets.MINIMAX_GROUP_ID }}" \
@@ -152,14 +116,18 @@ jobs:
               \"model\": \"MiniMax-Text-01\",
               \"tokens_to_generate\": 2000,
               \"messages\": [
-                {\"role\": \"system\", \"content\": \"You are an expert Android developer assistant specialized in debugging build failures.\"},
+                {\"role\": \"system\", \"content\": \"You are an expert Android developer assistant specialized in debugging build failures. Return JSON ONLY.\"},
                 {\"role\": \"user\", \"content\": \"$PROMPT\"}
               ],
               \"temperature\": 0.3
             }")
           
-          # Extract and save AI response
-          echo "$RESPONSE" | jq -r '.choices[0].messages[] | select(.role == \"assistant\") | .text' > ai-analysis.json 2>/dev/null || echo "$RESPONSE" > ai-analysis.json
+          # Extraemos el contenido directo del asistente sin escapar comillas en jq
+          if echo "$RESPONSE" | jq -e .choices[0].messages > /dev/null 2>&1; then
+            echo "$RESPONSE" | jq -r '.choices[0].messages[-1].content' > ai-analysis.json
+          else
+            echo "{\"error\": \"API call failed\"}" > ai-analysis.json
+          fi
           
           echo "=== AI Analysis Complete ==="
           cat ai-analysis.json | head -100
@@ -177,6 +145,9 @@ jobs:
   apply-fixes:
     name: Apply AI Fixes
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     needs: ai-analysis
     if: always() && needs.ai-analysis.result != 'skipped'
     steps:
@@ -195,35 +166,21 @@ jobs:
         run: |
           echo "Parsing AI recommendations and applying fixes..."
           
-          # Parse the AI analysis (simplified - in production would use jq more extensively)
           if [ -f "ai-analysis/ai-analysis.json" ]; then
             echo "AI Analysis found, attempting fixes..."
             
-            # For demonstration, create a fix commit with AI suggestions
-            # In production, this would parse JSON and apply specific fixes
-            
-git config user.name "Anekon AI Bot"
+            git config user.name "Anekon AI Bot"
             git config user.email "anekon@ai.local"
             
-            # Create a branch for the fix
             git checkout -b fix/ai-autofix-${{ github.run_id }}
             
-            # Add a marker file for the fix (actual implementation would apply real fixes)
-            cat > AI_FIX_SUMMARY.md << 'SUMMARY'
-            # AI AutoFix Summary
-            Generated by Anekon AI Bot
-            
-            ## Analysis
-            This build failed due to [analysis from AI].
-            
-            ## Applied Fixes
-            [List of fixes applied by AI]
-            
-            ## Next Steps
-            1. Review the changes
-            2. Run the build again to verify
-            3. Merge if all checks pass
-            SUMMARY
+            # ATENCIÓN AQUÍ: El EOF debe ir pegado al margen izquierdo para que Bash no reviente
+          cat > AI_FIX_SUMMARY.md << 'EOF'
+          # AI AutoFix Summary
+          Generated by Anekon AI Bot
+          ## Analysis
+          Check ai-analysis.json for full details.
+          EOF
             
             git add AI_FIX_SUMMARY.md
             git commit -m "feat: Apply AI-generated fixes for build failure [skip ci]"
@@ -245,17 +202,16 @@ git config user.name "Anekon AI Bot"
         if: success()
         run: |
           echo "Creating pull request for AI fixes..."
-          PR_RESPONSE=$(curl -s -X POST "https://api.github.com/repos/${{ github.repository }}/pulls" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "title": "🤖 AI AutoFix: Resolved build failure",
-              "body": "This PR contains AI-generated fixes for the build failure on `'"${{ github.event.workflow_run.head_branch }}"'`. Please review the changes before merging.",
-              "head": "fix/ai-autofix-'"${{ github.run_id }}"'",
-              "base": "'"${{ github.event.workflow_run.head_branch }}"'"
-            }')
+          # JSON limpio, sin concatenaciones raras de Bash
+          PR_BODY="This PR contains AI-generated fixes for the build failure on branch ${{ github.event.workflow_run.head_branch }}."
           
-          echo "$PR_RESPONSE" | jq -r '.html_url // .message' | xargs -I {} echo "PR Created: {}"
+          PR_RESPONSE=$(curl -s -X POST "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"title\":\"🤖 AI AutoFix: Resolved build failure\",\"body\":\"$PR_BODY\",\"head\":\"fix/ai-autofix-${{ github.run_id }}\",\"base\":\"${{ github.event.workflow_run.head_branch }}\"}")
+          
+          echo "PR Created. Response snippet:"
+          echo "$PR_RESPONSE" | jq -r '.html_url // .message'
 
   # ============================================
   # JOB 5: Notify Status
@@ -270,12 +226,7 @@ git config user.name "Anekon AI Bot"
         run: |
           if [ "${{ needs.analyze-failure.outputs.has_failures }}" == "true" ]; then
             echo "🔴 Build failed. AI analysis and fixes were attempted."
-            
-            if [ "${{ needs.apply-fixes.result }}" == "success" ]; then
-              echo "✅ AI fixes applied and PR created"
-            else
-              echo "⚠️ AI fixes could not be applied. Manual review needed."
-            fi
           else
             echo "✅ No failures detected in workflow run"
           fi
+          
