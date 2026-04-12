@@ -9,63 +9,50 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.anekon.ci.data.security.SecureApiKeyManager
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anekon.ci.data.security.ValidationResult
 import com.anekon.ci.domain.model.AIProviderType
 import com.anekon.ci.ui.theme.AnekonColors
-import kotlinx.coroutines.launch
 
-/**
- * Pantalla de Configuración con entrada segura de API Keys
- * Usa EncryptedSharedPreferences para almacenamiento seguro
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    apiKeyManager: SecureApiKeyManager? = null
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val scope = rememberCoroutineScope()
+    // Escuchando la memoria blindada del ViewModel
+    val githubToken by viewModel.githubToken.collectAsStateWithLifecycle()
+    val minimaxProKey by viewModel.minimaxProKey.collectAsStateWithLifecycle()
+    val minimaxFreeKey by viewModel.minimaxFreeKey.collectAsStateWithLifecycle()
+    val openaiKey by viewModel.openaiKey.collectAsStateWithLifecycle()
+    val anthropicKey by viewModel.anthropicKey.collectAsStateWithLifecycle()
+    val geminiKey by viewModel.geminiKey.collectAsStateWithLifecycle()
+    val localEndpoint by viewModel.localEndpoint.collectAsStateWithLifecycle()
+    
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle()
+    val autoFixEnabled by viewModel.autoFixEnabled.collectAsStateWithLifecycle()
+    
+    val validationStatus by viewModel.validationStatus.collectAsStateWithLifecycle()
+    val isValidating by viewModel.isValidating.collectAsStateWithLifecycle()
 
-    // Token GitHub
-    var githubToken by remember { mutableStateOf(apiKeyManager?.getGitHubToken() ?: "") }
-    var showGitHubToken by remember { mutableStateOf(false) }
-    var githubTokenStatus by remember { mutableStateOf<String?>(null) }
+    // Estados puramente visuales (se guardan al girar la pantalla o cambiar tab con rememberSaveable)
+    var showGitHubToken by rememberSaveable { mutableStateOf(false) }
+    var githubTokenStatus by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSaveSuccess by rememberSaveable { mutableStateOf(false) }
+    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
 
-    // API Keys state
-    var minimaxProKey by remember { mutableStateOf("") }
-    var minimaxFreeKey by remember { mutableStateOf("") }
-    var openaiKey by remember { mutableStateOf("") }
-    var anthropicKey by remember { mutableStateOf("") }
-    var geminiKey by remember { mutableStateOf("") }
-    var localEndpoint by remember { mutableStateOf(apiKeyManager?.getLocalEndpoint() ?: "http://localhost:11434") }
-
-    // UI state
-    var selectedProviderForInput by remember { mutableStateOf<AIProviderType?>(null) }
-    var validationStatus by remember { mutableStateOf<Pair<AIProviderType, ValidationResult>?>(null) }
-    var isValidating by remember { mutableStateOf(false) }
-    var showSaveSuccess by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    // Settings
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var autoFixEnabled by remember { mutableStateOf(true) }
-
-    // Load existing keys
-    LaunchedEffect(Unit) {
-        apiKeyManager?.let { manager ->
-            githubToken = manager.getGitHubToken() ?: ""
-            if (githubToken.isNotBlank()) githubTokenStatus = "✓ Conectado"
-        }
+    LaunchedEffect(githubToken) {
+        if (githubToken.isNotBlank()) githubTokenStatus = "✓ Conectado" else githubTokenStatus = null
     }
 
     LazyColumn(
@@ -89,21 +76,14 @@ fun SettingsScreen(
         // ============ Seguridad ============
         item {
             Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = AnekonColors.Success.copy(alpha = 0.1f)
-                ),
+                colors = CardDefaults.cardColors(containerColor = AnekonColors.Success.copy(alpha = 0.1f)),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Security,
-                        contentDescription = null,
-                        tint = AnekonColors.Success,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Default.Security, contentDescription = null, tint = AnekonColors.Success, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Las API keys se almacenan de forma segura usando EncryptedSharedPreferences + Android Keystore. Nunca se suben a GitHub.",
@@ -115,7 +95,7 @@ fun SettingsScreen(
             }
         }
 
-        // ============ GitHub Token Section ============
+        // ============ GitHub Token ============
         item {
             Spacer(modifier = Modifier.height(8.dp))
             SettingsSection(title = "Cuenta GitHub")
@@ -125,7 +105,7 @@ fun SettingsScreen(
             SecureInputCard(
                 label = "GitHub Token (Personal Access Token)",
                 value = githubToken,
-                onValueChange = { githubToken = it },
+                onValueChange = { viewModel.updateGithubToken(it) },
                 placeholder = "ghp_xxxxxxxxxxxx",
                 icon = Icons.Default.Key,
                 isPassword = true,
@@ -133,13 +113,13 @@ fun SettingsScreen(
                 onTogglePassword = { showGitHubToken = !showGitHubToken },
                 statusText = githubTokenStatus,
                 onSave = {
-                    apiKeyManager?.saveGitHubToken(githubToken)
+                    viewModel.saveGithubToken()
                     githubTokenStatus = "✓ Guardado de forma segura"
                 }
             )
         }
 
-        // ============ API Keys Section ============
+        // ============ API Keys ============
         item {
             Spacer(modifier = Modifier.height(16.dp))
             SettingsSection(title = "API Keys de IA")
@@ -153,21 +133,10 @@ fun SettingsScreen(
                 icon = Icons.Default.Star,
                 badge = "PAGO",
                 badgeColor = AnekonColors.Amber,
-                hasKey = minimaxProKey.isNotBlank() || (apiKeyManager?.hasApiKey(AIProviderType.MINIMAX_PRO) == true),
-                onAddKey = { key ->
-                    apiKeyManager?.saveApiKey(AIProviderType.MINIMAX_PRO, key)
-                    minimaxProKey = key
-                    scope.launch { validateKey(AIProviderType.MINIMAX_PRO, key, apiKeyManager) }
-                },
-                onRemoveKey = {
-                    apiKeyManager?.deleteApiKey(AIProviderType.MINIMAX_PRO)
-                    minimaxProKey = ""
-                    validationStatus = null
-                },
-                currentValue = minimaxProKey,
-                onValidate = {
-                    scope.launch { validateKey(AIProviderType.MINIMAX_PRO, minimaxProKey, apiKeyManager) }
-                },
+                hasKey = minimaxProKey.isNotBlank() || viewModel.apiKeyManager.hasApiKey(AIProviderType.MINIMAX_PRO),
+                onAddKey = { viewModel.saveApiKey(AIProviderType.MINIMAX_PRO, it) },
+                onRemoveKey = { viewModel.removeApiKey(AIProviderType.MINIMAX_PRO) },
+                onValidate = { viewModel.validateKey(AIProviderType.MINIMAX_PRO, minimaxProKey) },
                 validationResult = validationStatus?.takeIf { it.first == AIProviderType.MINIMAX_PRO }?.second,
                 isValidating = isValidating && validationStatus?.first == AIProviderType.MINIMAX_PRO
             )
@@ -181,19 +150,10 @@ fun SettingsScreen(
                 icon = Icons.Default.Star,
                 badge = "FREE",
                 badgeColor = AnekonColors.Success,
-                hasKey = minimaxFreeKey.isNotBlank() || (apiKeyManager?.hasApiKey(AIProviderType.MINIMAX_FREE) == true),
-                onAddKey = { key ->
-                    apiKeyManager?.saveApiKey(AIProviderType.MINIMAX_FREE, key)
-                    minimaxFreeKey = key
-                },
-                onRemoveKey = {
-                    apiKeyManager?.deleteApiKey(AIProviderType.MINIMAX_FREE)
-                    minimaxFreeKey = ""
-                },
-                currentValue = minimaxFreeKey,
-                onValidate = {
-                    scope.launch { validateKey(AIProviderType.MINIMAX_FREE, minimaxFreeKey, apiKeyManager) }
-                },
+                hasKey = minimaxFreeKey.isNotBlank() || viewModel.apiKeyManager.hasApiKey(AIProviderType.MINIMAX_FREE),
+                onAddKey = { viewModel.saveApiKey(AIProviderType.MINIMAX_FREE, it) },
+                onRemoveKey = { viewModel.removeApiKey(AIProviderType.MINIMAX_FREE) },
+                onValidate = { viewModel.validateKey(AIProviderType.MINIMAX_FREE, minimaxFreeKey) },
                 validationResult = validationStatus?.takeIf { it.first == AIProviderType.MINIMAX_FREE }?.second,
                 isValidating = isValidating && validationStatus?.first == AIProviderType.MINIMAX_FREE
             )
@@ -207,25 +167,16 @@ fun SettingsScreen(
                 icon = Icons.Default.Psychology,
                 badge = "FREE",
                 badgeColor = AnekonColors.Success,
-                hasKey = openaiKey.isNotBlank() || (apiKeyManager?.hasApiKey(AIProviderType.OPENAI) == true),
-                onAddKey = { key ->
-                    apiKeyManager?.saveApiKey(AIProviderType.OPENAI, key)
-                    openaiKey = key
-                },
-                onRemoveKey = {
-                    apiKeyManager?.deleteApiKey(AIProviderType.OPENAI)
-                    openaiKey = ""
-                },
-                currentValue = openaiKey,
-                onValidate = {
-                    scope.launch { validateKey(AIProviderType.OPENAI, openaiKey, apiKeyManager) }
-                },
+                hasKey = openaiKey.isNotBlank() || viewModel.apiKeyManager.hasApiKey(AIProviderType.OPENAI),
+                onAddKey = { viewModel.saveApiKey(AIProviderType.OPENAI, it) },
+                onRemoveKey = { viewModel.removeApiKey(AIProviderType.OPENAI) },
+                onValidate = { viewModel.validateKey(AIProviderType.OPENAI, openaiKey) },
                 validationResult = validationStatus?.takeIf { it.first == AIProviderType.OPENAI }?.second,
                 isValidating = isValidating && validationStatus?.first == AIProviderType.OPENAI
             )
         }
 
-        // Google Gemini
+        // Gemini
         item {
             APIKeyCard(
                 title = "Google Gemini",
@@ -233,19 +184,10 @@ fun SettingsScreen(
                 icon = Icons.Default.AutoAwesome,
                 badge = "FREE",
                 badgeColor = AnekonColors.Success,
-                hasKey = geminiKey.isNotBlank() || (apiKeyManager?.hasApiKey(AIProviderType.GEMINI) == true),
-                onAddKey = { key ->
-                    apiKeyManager?.saveApiKey(AIProviderType.GEMINI, key)
-                    geminiKey = key
-                },
-                onRemoveKey = {
-                    apiKeyManager?.deleteApiKey(AIProviderType.GEMINI)
-                    geminiKey = ""
-                },
-                currentValue = geminiKey,
-                onValidate = {
-                    scope.launch { validateKey(AIProviderType.GEMINI, geminiKey, apiKeyManager) }
-                },
+                hasKey = geminiKey.isNotBlank() || viewModel.apiKeyManager.hasApiKey(AIProviderType.GEMINI),
+                onAddKey = { viewModel.saveApiKey(AIProviderType.GEMINI, it) },
+                onRemoveKey = { viewModel.removeApiKey(AIProviderType.GEMINI) },
+                onValidate = { viewModel.validateKey(AIProviderType.GEMINI, geminiKey) },
                 validationResult = validationStatus?.takeIf { it.first == AIProviderType.GEMINI }?.second,
                 isValidating = isValidating && validationStatus?.first == AIProviderType.GEMINI
             )
@@ -259,19 +201,10 @@ fun SettingsScreen(
                 icon = Icons.Default.Person,
                 badge = "PAGO",
                 badgeColor = AnekonColors.Amber,
-                hasKey = anthropicKey.isNotBlank() || (apiKeyManager?.hasApiKey(AIProviderType.ANTHROPIC) == true),
-                onAddKey = { key ->
-                    apiKeyManager?.saveApiKey(AIProviderType.ANTHROPIC, key)
-                    anthropicKey = key
-                },
-                onRemoveKey = {
-                    apiKeyManager?.deleteApiKey(AIProviderType.ANTHROPIC)
-                    anthropicKey = ""
-                },
-                currentValue = anthropicKey,
-                onValidate = {
-                    scope.launch { validateKey(AIProviderType.ANTHROPIC, anthropicKey, apiKeyManager) }
-                },
+                hasKey = anthropicKey.isNotBlank() || viewModel.apiKeyManager.hasApiKey(AIProviderType.ANTHROPIC),
+                onAddKey = { viewModel.saveApiKey(AIProviderType.ANTHROPIC, it) },
+                onRemoveKey = { viewModel.removeApiKey(AIProviderType.ANTHROPIC) },
+                onValidate = { viewModel.validateKey(AIProviderType.ANTHROPIC, anthropicKey) },
                 validationResult = validationStatus?.takeIf { it.first == AIProviderType.ANTHROPIC }?.second,
                 isValidating = isValidating && validationStatus?.first == AIProviderType.ANTHROPIC
             )
@@ -281,24 +214,19 @@ fun SettingsScreen(
         item {
             EndpointCard(
                 title = "Local / Ollama",
-                description = "Conecta a Ollama, LM Studio, etc. (Pruebas de estrés)",
+                description = "Conecta a Ollama, LM Studio, etc.",
                 icon = Icons.Default.Computer,
                 badge = "FREE",
                 badgeColor = AnekonColors.Success,
                 endpointValue = localEndpoint,
-                onEndpointChange = {
-                    localEndpoint = it
-                    apiKeyManager?.saveLocalEndpoint(it)
-                },
-                onValidate = {
-                    scope.launch { validateKey(AIProviderType.LOCAL, localEndpoint, apiKeyManager) }
-                },
+                onEndpointChange = { viewModel.updateLocalEndpoint(it) },
+                onValidate = { viewModel.validateKey(AIProviderType.LOCAL, localEndpoint) },
                 validationResult = validationStatus?.takeIf { it.first == AIProviderType.LOCAL }?.second,
                 isValidating = isValidating && validationStatus?.first == AIProviderType.LOCAL
             )
         }
 
-        // ============ Settings Section ============
+        // ============ Settings ============
         item {
             Spacer(modifier = Modifier.height(16.dp))
             SettingsSection(title = "Configuración")
@@ -310,7 +238,7 @@ fun SettingsScreen(
                 title = "Notificaciones Push",
                 subtitle = "Recibir alertas de builds",
                 checked = notificationsEnabled,
-                onCheckedChange = { notificationsEnabled = it }
+                onCheckedChange = { viewModel.toggleNotifications(it) }
             )
         }
 
@@ -320,7 +248,7 @@ fun SettingsScreen(
                 title = "Auto-Fix Automático",
                 subtitle = "Aplicar fixes automáticamente cuando fallen",
                 checked = autoFixEnabled,
-                onCheckedChange = { autoFixEnabled = it }
+                onCheckedChange = { viewModel.toggleAutoFix(it) }
             )
         }
 
@@ -340,78 +268,27 @@ fun SettingsScreen(
             )
         }
 
-        item {
-            Spacer(modifier = Modifier.height(32.dp))
-        }
+        item { Spacer(modifier = Modifier.height(32.dp)) }
     }
 
-    // Success Dialog
-    if (showSaveSuccess) {
-        AlertDialog(
-            onDismissRequest = { showSaveSuccess = false },
-            containerColor = AnekonColors.BackgroundSecondary,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = AnekonColors.Success
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Guardado", color = AnekonColors.TextPrimary)
-                }
-            },
-            text = {
-                Text(
-                    "Las API keys se han guardado de forma segura en tu dispositivo usando Android Keystore.",
-                    color = AnekonColors.TextMuted
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showSaveSuccess = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Success)
-                ) {
-                    Text("Aceptar")
-                }
-            }
-        )
-    }
-
-    // Delete Confirmation Dialog
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             containerColor = AnekonColors.BackgroundSecondary,
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = AnekonColors.Error
-                    )
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = AnekonColors.Error)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("¿Borrar todas las keys?", color = AnekonColors.Error)
                 }
             },
             text = {
-                Text(
-                    "Esta acción eliminará TODAS las API keys y tokens almacenados de forma segura. Esta acción no se puede deshacer.",
-                    color = AnekonColors.TextMuted
-                )
+                Text("Esta acción eliminará TODAS las API keys y tokens almacenados de forma segura. No se puede deshacer.", color = AnekonColors.TextMuted)
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        apiKeyManager?.clearAllKeys()
-                        githubToken = ""
-                        minimaxProKey = ""
-                        minimaxFreeKey = ""
-                        openaiKey = ""
-                        anthropicKey = ""
-                        geminiKey = ""
-                        localEndpoint = "http://localhost:11434"
-                        validationStatus = null
+                        viewModel.clearAll()
                         showDeleteConfirm = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Error)
@@ -456,45 +333,24 @@ private fun SecureInputCard(
     onSave: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = AnekonColors.BackgroundSecondary
-        ),
+        colors = CardDefaults.cardColors(containerColor = AnekonColors.BackgroundSecondary),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = AnekonColors.TextMuted,
-                    modifier = Modifier.size(24.dp)
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = icon, contentDescription = null, tint = AnekonColors.TextMuted, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AnekonColors.TextMuted
-                )
+                Text(text = label, style = MaterialTheme.typography.bodySmall, color = AnekonColors.TextMuted)
                 if (statusText != null) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AnekonColors.Success
-                    )
+                    Text(text = statusText, style = MaterialTheme.typography.bodySmall, color = AnekonColors.Success)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                placeholder = {
-                    Text(text = placeholder, color = AnekonColors.TextMuted)
-                },
+                placeholder = { Text(text = placeholder, color = AnekonColors.TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AnekonColors.Amber,
                     unfocusedBorderColor = AnekonColors.BackgroundTertiary,
@@ -504,17 +360,13 @@ private fun SecureInputCard(
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                visualTransformation = if (isPassword && !showPassword) {
-                    PasswordVisualTransformation()
-                } else {
-                    VisualTransformation.None
-                },
+                visualTransformation = if (isPassword && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
                 trailingIcon = if (isPassword) {
                     {
                         IconButton(onClick = onTogglePassword) {
                             Icon(
                                 imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showPassword) "Ocultar" else "Mostrar",
+                                contentDescription = null,
                                 tint = AnekonColors.TextMuted
                             )
                         }
@@ -522,20 +374,15 @@ private fun SecureInputCard(
                 } else null
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Row(
+            OutlinedButton(
+                onClick = onSave,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AnekonColors.Success),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                OutlinedButton(
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AnekonColors.Success),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Guardar seguro")
-                }
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Guardar seguro")
             }
         }
     }
@@ -551,41 +398,24 @@ private fun APIKeyCard(
     hasKey: Boolean,
     onAddKey: (String) -> Unit,
     onRemoveKey: () -> Unit,
-    currentValue: String,
     onValidate: () -> Unit,
     validationResult: ValidationResult?,
     isValidating: Boolean
 ) {
-    var showInput by remember { mutableStateOf(false) }
-    var inputValue by remember { mutableStateOf("") }
+    var showInput by rememberSaveable { mutableStateOf(false) }
+    var inputValue by rememberSaveable { mutableStateOf("") }
 
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = AnekonColors.BackgroundSecondary
-        ),
+        colors = CardDefaults.cardColors(containerColor = AnekonColors.BackgroundSecondary),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = AnekonColors.Amber,
-                    modifier = Modifier.size(32.dp)
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = icon, contentDescription = null, tint = AnekonColors.Amber, modifier = Modifier.size(32.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AnekonColors.TextPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(text = title, style = MaterialTheme.typography.titleMedium, color = AnekonColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
@@ -593,78 +423,34 @@ private fun APIKeyCard(
                                 .background(badgeColor.copy(alpha = 0.2f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text(
-                                text = badge,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = badgeColor,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(text = badge, style = MaterialTheme.typography.labelSmall, color = badgeColor, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AnekonColors.TextMuted
-                    )
+                    Text(text = description, style = MaterialTheme.typography.bodySmall, color = AnekonColors.TextMuted)
                 }
                 if (hasKey) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Configurado",
-                        tint = AnekonColors.Success,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AnekonColors.Success, modifier = Modifier.size(24.dp))
                 }
             }
 
-            // Validation status
             validationResult?.let { result ->
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     when (result) {
                         is ValidationResult.Valid -> {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = AnekonColors.Success,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AnekonColors.Success, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Válida",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AnekonColors.Success
-                            )
+                            Text(text = "Válida", style = MaterialTheme.typography.bodySmall, color = AnekonColors.Success)
                         }
                         is ValidationResult.Invalid -> {
-                            Icon(
-                                Icons.Default.Error,
-                                contentDescription = null,
-                                tint = AnekonColors.Error,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Default.Error, contentDescription = null, tint = AnekonColors.Error, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = result.reason,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AnekonColors.Error
-                            )
+                            Text(text = result.reason, style = MaterialTheme.typography.bodySmall, color = AnekonColors.Error)
                         }
                         is ValidationResult.Error -> {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = AnekonColors.Warning,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = AnekonColors.Warning, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = result.message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AnekonColors.Warning
-                            )
+                            Text(text = result.message, style = MaterialTheme.typography.bodySmall, color = AnekonColors.Warning)
                         }
                     }
                 }
@@ -676,9 +462,7 @@ private fun APIKeyCard(
                 OutlinedTextField(
                     value = inputValue,
                     onValueChange = { inputValue = it },
-                    placeholder = {
-                        Text(text = "Ingresa tu API key", color = AnekonColors.TextMuted)
-                    },
+                    placeholder = { Text(text = "Ingresa tu API key", color = AnekonColors.TextMuted) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = AnekonColors.Amber,
                         unfocusedBorderColor = AnekonColors.BackgroundTertiary,
@@ -691,15 +475,9 @@ private fun APIKeyCard(
                     visualTransformation = PasswordVisualTransformation()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = {
-                            showInput = false
-                            inputValue = ""
-                        },
+                        onClick = { showInput = false; inputValue = "" },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AnekonColors.TextMuted),
                         shape = RoundedCornerShape(8.dp)
@@ -708,17 +486,12 @@ private fun APIKeyCard(
                     }
                     Button(
                         onClick = {
-                            if (inputValue.isNotBlank()) {
-                                onAddKey(inputValue)
-                            }
+                            if (inputValue.isNotBlank()) onAddKey(inputValue)
                             showInput = false
                             inputValue = ""
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AnekonColors.Success,
-                            contentColor = Color.White
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Success, contentColor = Color.White),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -727,27 +500,17 @@ private fun APIKeyCard(
                     }
                 }
             } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (hasKey) {
                         Button(
                             onClick = onValidate,
                             modifier = Modifier.weight(1f),
                             enabled = !isValidating,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AnekonColors.Teal.copy(alpha = 0.2f),
-                                contentColor = AnekonColors.Teal
-                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Teal.copy(alpha = 0.2f), contentColor = AnekonColors.Teal),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             if (isValidating) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = AnekonColors.Teal
-                                )
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = AnekonColors.Teal)
                             } else {
                                 Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
@@ -767,11 +530,8 @@ private fun APIKeyCard(
                     } else {
                         Button(
                             onClick = { showInput = true },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AnekonColors.Amber,
-                                contentColor = AnekonColors.BackgroundPrimary
-                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Amber, contentColor = AnekonColors.BackgroundPrimary),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -798,36 +558,20 @@ private fun EndpointCard(
     validationResult: ValidationResult?,
     isValidating: Boolean
 ) {
-    var showInput by remember { mutableStateOf(false) }
-    var inputValue by remember { mutableStateOf(endpointValue) }
+    var showInput by rememberSaveable { mutableStateOf(false) }
+    var inputValue by rememberSaveable { mutableStateOf(endpointValue) }
 
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = AnekonColors.BackgroundSecondary
-        ),
+        colors = CardDefaults.cardColors(containerColor = AnekonColors.BackgroundSecondary),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = AnekonColors.Amber,
-                    modifier = Modifier.size(32.dp)
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = icon, contentDescription = null, tint = AnekonColors.Amber, modifier = Modifier.size(32.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AnekonColors.TextPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(text = title, style = MaterialTheme.typography.titleMedium, color = AnekonColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
@@ -835,50 +579,10 @@ private fun EndpointCard(
                                 .background(badgeColor.copy(alpha = 0.2f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text(
-                                text = badge,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = badgeColor,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(text = badge, style = MaterialTheme.typography.labelSmall, color = badgeColor, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AnekonColors.TextMuted
-                    )
-                }
-                if (endpointValue != "http://localhost:11434") {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Configurado",
-                        tint = AnekonColors.Success,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-
-            validationResult?.let { result ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    when (result) {
-                        is ValidationResult.Valid -> {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AnekonColors.Success, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Conectado", style = MaterialTheme.typography.bodySmall, color = AnekonColors.Success)
-                        }
-                        is ValidationResult.Invalid -> {
-                            Icon(Icons.Default.Error, contentDescription = null, tint = AnekonColors.Error, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = result.reason, style = MaterialTheme.typography.bodySmall, color = AnekonColors.Error)
-                        }
-                        is ValidationResult.Error -> {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = AnekonColors.Warning, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = result.message, style = MaterialTheme.typography.bodySmall, color = AnekonColors.Warning)
-                        }
-                    }
+                    Text(text = description, style = MaterialTheme.typography.bodySmall, color = AnekonColors.TextMuted)
                 }
             }
 
@@ -888,9 +592,6 @@ private fun EndpointCard(
                 OutlinedTextField(
                     value = inputValue,
                     onValueChange = { inputValue = it },
-                    placeholder = {
-                        Text(text = "http://localhost:11434", color = AnekonColors.TextMuted)
-                    },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = AnekonColors.Amber,
                         unfocusedBorderColor = AnekonColors.BackgroundTertiary,
@@ -920,8 +621,6 @@ private fun EndpointCard(
                         colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Success, contentColor = Color.White),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Guardar")
                     }
                 }
@@ -931,18 +630,9 @@ private fun EndpointCard(
                         onClick = onValidate,
                         modifier = Modifier.weight(1f),
                         enabled = !isValidating,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AnekonColors.Teal.copy(alpha = 0.2f),
-                            contentColor = AnekonColors.Teal
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = AnekonColors.Teal.copy(alpha = 0.2f), contentColor = AnekonColors.Teal),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        if (isValidating) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = AnekonColors.Teal)
-                        } else {
-                            Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(16.dp))
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Probar conexión")
                     }
                     OutlinedButton(
@@ -951,8 +641,6 @@ private fun EndpointCard(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AnekonColors.TextMuted),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Editar")
                     }
                 }
@@ -970,45 +658,23 @@ private fun SettingsToggleItem(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = AnekonColors.BackgroundSecondary
-        ),
+        colors = CardDefaults.cardColors(containerColor = AnekonColors.BackgroundSecondary),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = AnekonColors.Teal,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(imageVector = icon, contentDescription = null, tint = AnekonColors.Teal, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = AnekonColors.TextPrimary
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AnekonColors.TextMuted
-                )
+                Text(text = title, style = MaterialTheme.typography.titleMedium, color = AnekonColors.TextPrimary)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = AnekonColors.TextMuted)
             }
             Switch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = AnekonColors.Amber,
-                    checkedTrackColor = AnekonColors.Amber.copy(alpha = 0.3f),
-                    uncheckedThumbColor = AnekonColors.TextMuted,
-                    uncheckedTrackColor = AnekonColors.BackgroundTertiary
-                )
+                colors = SwitchDefaults.colors(checkedThumbColor = AnekonColors.Amber, checkedTrackColor = AnekonColors.Amber.copy(alpha = 0.3f))
             )
         }
     }
@@ -1024,50 +690,20 @@ private fun SettingsClickItem(
 ) {
     Card(
         modifier = Modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = AnekonColors.BackgroundSecondary
-        ),
+        colors = CardDefaults.cardColors(containerColor = AnekonColors.BackgroundSecondary),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isDestructive) AnekonColors.Error else AnekonColors.Teal,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(imageVector = icon, contentDescription = null, tint = if (isDestructive) AnekonColors.Error else AnekonColors.Teal, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isDestructive) AnekonColors.Error else AnekonColors.TextPrimary
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AnekonColors.TextMuted
-                )
+                Text(text = title, style = MaterialTheme.typography.titleMedium, color = if (isDestructive) AnekonColors.Error else AnekonColors.TextPrimary)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = AnekonColors.TextMuted)
             }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = AnekonColors.TextMuted,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = AnekonColors.TextMuted, modifier = Modifier.size(24.dp))
         }
     }
-}
-
-private suspend fun validateKey(
-    provider: AIProviderType,
-    key: String,
-    manager: SecureApiKeyManager?
-) {
-    // Validation is handled by SecureApiKeyManager
 }
