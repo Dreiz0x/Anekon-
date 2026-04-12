@@ -414,14 +414,14 @@ private fun AnalysisResultCard(result: AIAnalysisResult) {
             // Error type
             ResultRow(
                 label = "Tipo de error",
-                value = result.errorType,
+                value = result.errorType ?: "",
                 valueColor = AnekonColors.Error
             )
 
             // Error message
             ResultRow(
                 label = "Mensaje",
-                value = result.errorMessage
+                value = result.errorMessage ?: ""
             )
 
             // Root cause
@@ -436,7 +436,7 @@ private fun AnalysisResultCard(result: AIAnalysisResult) {
             // Suggested fix
             ResultRow(
                 label = "Solución sugerida",
-                value = result.suggestedFix,
+                value = result.suggestedFix ?: "",
                 valueColor = AnekonColors.Success
             )
 

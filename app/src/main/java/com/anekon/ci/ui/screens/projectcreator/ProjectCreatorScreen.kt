@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.anekon.ci.ui.screens.projectcreator
 
 import androidx.compose.animation.AnimatedVisibility
@@ -303,7 +304,7 @@ fun ProjectCreatorScreen(
                 ) {
                     if (state.isGenerating) {
                         LinearProgressIndicator(
-                            progress = { state.generationProgress },
+                            progress = state.generationProgress,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)

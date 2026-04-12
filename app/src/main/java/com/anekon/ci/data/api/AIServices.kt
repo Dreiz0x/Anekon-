@@ -96,7 +96,7 @@ class MiniMaxService @Inject constructor(
                     put("role", if (msg.isFromUser) "user" else "assistant")
                     put("content", msg.content)
                 }
-            }
+            }.toMutableList()
 
             messages.add(JSONObject().apply {
                 put("role", "user")
