@@ -24,43 +24,44 @@ fun AnekonNavGraph(
             navController = navController,
             startDestination = Screen.Home.route
         ) {
-        composable(Screen.Home.route) {
-            HomeScreen(
-                onNavigateToProjectCreator = { navController.navigate(Screen.ProjectCreator.route) }
-            )
-        }
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    onNavigateToProjectCreator = { navController.navigate(Screen.ProjectCreator.route) }
+                )
+            }
 
-        composable(Screen.AutoFix.route) {
-            AutoFixScreen(
-                failedBuilds = emptyList(),
-                isLoading = false,
-                onAnalyzeBuild = {},
-                onApplyFix = { _, _ -> },
-                onNavigateToDetail = {},
-                onRefresh = {}
-            )
-        }
+            composable(Screen.AutoFix.route) {
+                AutoFixScreen(
+                    failedBuilds = emptyList(),
+                    isLoading = false,
+                    onAnalyzeBuild = {},
+                    onApplyFix = { _, _ -> },
+                    onNavigateToDetail = {},
+                    onRefresh = {}
+                )
+            }
 
-        composable(Screen.Builder.route) {
-            BuilderScreen()
-        }
+            composable(Screen.Builder.route) {
+                BuilderScreen()
+            }
 
-        composable(Screen.Chat.route) {
-            ChatScreen()
-        }
+            composable(Screen.Chat.route) {
+                ChatScreen()
+            }
 
-        composable(Screen.Projects.route) {
-            ProjectsScreen()
-        }
+            composable(Screen.Projects.route) {
+                ProjectsScreen()
+            }
 
-        composable(Screen.Settings.route) {
-            SettingsScreen()
-        }
+            composable(Screen.Settings.route) {
+                SettingsScreen()
+            }
 
-        composable(Screen.ProjectCreator.route) {
-            ProjectCreatorScreen(
-                onNavigateBack = { navController.popBackStack() }
-            )
+            composable(Screen.ProjectCreator.route) {
+                ProjectCreatorScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }
