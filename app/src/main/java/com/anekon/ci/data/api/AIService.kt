@@ -62,6 +62,11 @@ object AIServiceFactory {
                 if (apiKey.isNullOrBlank()) null
                 else MiniMaxService(apiKey)
             }
+            AIProviderType.MINIMAX_FREE -> {
+                // Implementación gratuita de MiniMax si existe, o usar la misma con flag
+                if (apiKey.isNullOrBlank()) null
+                else MiniMaxService(apiKey) 
+            }
             AIProviderType.OPENAI -> {
                 if (apiKey.isNullOrBlank()) null
                 else OpenAIService(apiKey)
@@ -69,6 +74,10 @@ object AIServiceFactory {
             AIProviderType.ANTHROPIC -> {
                 if (apiKey.isNullOrBlank()) null
                 else AnthropicService(apiKey)
+            }
+            AIProviderType.GEMINI -> {
+                // Implementación de Gemini
+                null // TODO: Implementar GeminiService
             }
             AIProviderType.LOCAL -> {
                 // Para pruebas locales (Ollama, LM Studio, etc.)
@@ -87,6 +96,13 @@ object AIServiceFactory {
             description = "Para pruebas locales con Ollama, LM Studio, etc.",
             requiresEndpoint = true,
             requiresApiKey = false
+        ),
+        ProviderInfo(
+            type = AIProviderType.MINIMAX_FREE,
+            name = "MiniMax Free",
+            description = "Versión gratuita de MiniMax",
+            requiresEndpoint = false,
+            requiresApiKey = true
         ),
         ProviderInfo(
             type = AIProviderType.OPENAI,
@@ -117,6 +133,14 @@ object AIServiceFactory {
             requiresEndpoint = false,
             requiresApiKey = true,
             apiKeyUrl = "https://console.anthropic.com/"
+        ),
+        ProviderInfo(
+            type = AIProviderType.GEMINI,
+            name = "Google Gemini",
+            description = "Google Gemini Pro/Flash",
+            requiresEndpoint = false,
+            requiresApiKey = true,
+            apiKeyUrl = "https://aistudio.google.com/"
         )
     )
 }

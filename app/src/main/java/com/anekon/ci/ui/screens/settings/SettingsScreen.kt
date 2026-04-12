@@ -256,7 +256,7 @@ fun SettingsScreen(
             APIKeyCard(
                 title = "Anthropic Claude",
                 description = "Claude 3 - Análisis avanzado",
-                icon = Icons.Default.Human,
+                icon = Icons.Default.Person,
                 badge = "PAGO",
                 badgeColor = AnekonColors.Amber,
                 hasKey = anthropicKey.isNotBlank() || (apiKeyManager?.hasApiKey(AIProviderType.ANTHROPIC) == true),

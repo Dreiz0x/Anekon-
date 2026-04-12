@@ -5,6 +5,7 @@ import com.anekon.ci.data.api.AIServiceFactory
 import com.anekon.ci.data.api.LocalAIService
 import com.anekon.ci.data.api.MiniMaxService
 import com.anekon.ci.data.api.OpenAIService
+import com.anekon.ci.data.api.ProviderInfo
 import com.anekon.ci.data.local.dao.AISettingsDao
 import com.anekon.ci.data.local.dao.ChatMessageDao
 import com.anekon.ci.data.local.dao.GeneratedAppDao
@@ -43,11 +44,18 @@ class AIRepository @Inject constructor(
             AIProviderType.MINIMAX_PRO -> {
                 settings.minimaxApiKey?.let { MiniMaxService(it) }
             }
+            AIProviderType.MINIMAX_FREE -> {
+                settings.minimaxApiKey?.let { MiniMaxService(it) }
+            }
             AIProviderType.OPENAI -> {
                 settings.openaiApiKey?.let { OpenAIService(it) }
             }
             AIProviderType.ANTHROPIC -> {
                 settings.anthropicApiKey?.let { AnthropicService(it) }
+            }
+            AIProviderType.GEMINI -> {
+                // TODO: Implementar GeminiService
+                null
             }
             AIProviderType.LOCAL -> {
                 LocalAIService(settings.localEndpoint ?: "http://localhost:11434")
@@ -69,7 +77,7 @@ class AIRepository @Inject constructor(
         val currentSettings = aiSettingsDao.getSettings()
         val newSettings = currentSettings?.copy(selectedProvider = provider.name) ?: AISettingsEntity(
             selectedProvider = provider.name,
-            minimaxApiKey = if (provider == AIProviderType.MINIMAX_PRO) apiKey else null,
+            minimaxApiKey = if (provider == AIProviderType.MINIMAX_PRO || provider == AIProviderType.MINIMAX_FREE) apiKey else null,
             openaiApiKey = if (provider == AIProviderType.OPENAI) apiKey else null,
             anthropicApiKey = if (provider == AIProviderType.ANTHROPIC) apiKey else null,
             localEndpoint = if (provider == AIProviderType.LOCAL) endpoint else null,

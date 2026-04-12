@@ -47,27 +47,27 @@ class ProjectCreatorViewModel @Inject constructor() : ViewModel() {
     val availableTemplates = ProjectTemplates.availableTemplates
     
     fun updatePackageName(name: String) {
-        val sanitized = name.filter { it.isLetterOrDigit || it == '.' }
+        val sanitized = name.filter { it.isLetterOrDigit() || it == '.' }
             .lowercase()
             .trim()
         _state.update { it.copy(packageName = sanitized) }
     }
     
     fun updateAppName(name: String) {
-        val cleanName = name.filter { it.isLetterOrDigit || it.isWhitespace() }
+        val cleanName = name.filter { it.isLetterOrDigit() || it.isWhitespace() }
         _state.update { 
             it.copy(
                 appName = cleanName,
                 projectName = cleanName.lowercase()
                     .split("\\s+".toRegex())
                     .joinToString("-")
-                    .filter { c -> c.isLetterOrDigit || c == '-' }
+                    .filter { c -> c.isLetterOrDigit() || c == '-' }
             )
         }
     }
     
     fun updateProjectName(name: String) {
-        val sanitized = name.filter { it.isLetterOrDigit || it == '-' }
+        val sanitized = name.filter { it.isLetterOrDigit() || it == '-' }
             .lowercase()
         _state.update { it.copy(projectName = sanitized) }
     }

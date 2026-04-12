@@ -242,9 +242,9 @@ fun BuilderScreen() {
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Código listo para descargar",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AnekonColors.TextSecondary
+                                    text = "Listo para generar",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = AnekonColors.TextPrimary
                                 )
                             }
                         }
@@ -254,24 +254,22 @@ fun BuilderScreen() {
         }
 
         item {
-            Spacer(modifier = Modifier.height(16.dp))
-            // Navigation Buttons
+            Spacer(modifier = Modifier.height(24.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 if (currentStep > 0) {
-                    OutlinedButton(
+                    TextButton(
                         onClick = { currentStep-- },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = AnekonColors.TextSecondary
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                        colors = ButtonDefaults.textButtonColors(contentColor = AnekonColors.TextMuted)
                     ) {
-                        Text("Atrás")
+                        Text("Anterior")
                     }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
                 }
+
                 Button(
                     onClick = {
                         if (currentStep < 3) {
@@ -280,20 +278,22 @@ fun BuilderScreen() {
                             isGenerating = true
                         }
                     },
-                    modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AnekonColors.Amber,
                         contentColor = AnekonColors.BackgroundPrimary
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = when (currentStep) {
+                        0 -> appName.isNotBlank()
+                        1 -> selectedPlatforms.isNotEmpty()
+                        2 -> selectedFeatures.isNotEmpty()
+                        else -> !isGenerating
+                    }
                 ) {
-                    Text(if (currentStep == 3) "Generar" else "Siguiente")
+                    Text(if (currentStep < 3) "Siguiente" else "Generar App")
                 }
             }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
@@ -442,7 +442,7 @@ data class Feature(
 
 private val platforms = listOf(
     Platform("android", "Android", Icons.Default.Android),
-    Platform("ios", "iOS", Icons.Default.Apple),
+    Platform("ios", "iOS", Icons.Default.PhoneIphone),
     Platform("web", "Web", Icons.Default.Web),
     Platform("api", "API", Icons.Default.Api)
 )

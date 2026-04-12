@@ -342,7 +342,7 @@ private fun FailedBuildCard(
                 // Apply fix button
                 if (analysisResult != null) {
                     Button(
-                        onClick = { onApplyFix(build, analysisResult) },
+                        onClick = { onApplyFix(analysisResult) },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AnekonColors.Success,
@@ -476,7 +476,7 @@ private fun AnalysisResultCard(result: AIAnalysisResult) {
                     when (result.provider.name) {
                         "MINIMAX_PRO" -> Icons.Default.Star
                         "OPENAI" -> Icons.Default.Psychology
-                        "ANTHROPIC" -> Icons.Default.Human
+                        "ANTHROPIC" -> Icons.Default.Person
                         else -> Icons.Default.Computer
                     },
                     contentDescription = null,

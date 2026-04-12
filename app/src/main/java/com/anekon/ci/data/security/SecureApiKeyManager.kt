@@ -6,6 +6,11 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.anekon.ci.domain.model.AIProviderType
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -217,15 +222,15 @@ class SecureApiKeyManager @Inject constructor(
 
     private suspend fun validateMiniMaxKey(apiKey: String): ValidationResult {
         return try {
-            val client = okhttp3.OkHttpClient()
-            val requestBody = okhttp3.MediaType.Companion.toMediaTypeOrNull("application/json")?.let {
-                okhttp3.RequestBody.create(it, """{"model":"abab6.5-chat","messages":[{"role":"user","content":"Hi"}]}""")
-            }
-            val request = okhttp3.Request.Builder()
+            val client = OkHttpClient()
+            val mediaType = "application/json".toMediaTypeOrNull()
+            val requestBody = """{"model":"abab6.5-chat","messages":[{"role":"user","content":"Hi"}]}""".toRequestBody(mediaType)
+            
+            val request = Request.Builder()
                 .url("https://api.minimaxi.com/v1/text/chatcompletion_v2")
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody ?: okhttp3.RequestBody.create(null, ""))
+                .post(requestBody)
                 .build()
 
             val response = client.newCall(request).execute()
@@ -241,15 +246,15 @@ class SecureApiKeyManager @Inject constructor(
 
     private suspend fun validateOpenAIKey(apiKey: String): ValidationResult {
         return try {
-            val client = okhttp3.OkHttpClient()
-            val requestBody = okhttp3.MediaType.Companion.toMediaTypeOrNull("application/json")?.let {
-                okhttp3.RequestBody.create(it, """{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"Hi"}]}""")
-            }
-            val request = okhttp3.Request.Builder()
+            val client = OkHttpClient()
+            val mediaType = "application/json".toMediaTypeOrNull()
+            val requestBody = """{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"Hi"}]}""".toRequestBody(mediaType)
+            
+            val request = Request.Builder()
                 .url("https://api.openai.com/v1/chat/completions")
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody ?: okhttp3.RequestBody.create(null, ""))
+                .post(requestBody)
                 .build()
 
             val response = client.newCall(request).execute()
@@ -265,16 +270,16 @@ class SecureApiKeyManager @Inject constructor(
 
     private suspend fun validateAnthropicKey(apiKey: String): ValidationResult {
         return try {
-            val client = okhttp3.OkHttpClient()
-            val requestBody = okhttp3.MediaType.Companion.toMediaTypeOrNull("application/json")?.let {
-                okhttp3.RequestBody.create(it, """{"model":"claude-3-haiku-20240307","max_tokens":10,"messages":[{"role":"user","content":"Hi"}]}""")
-            }
-            val request = okhttp3.Request.Builder()
+            val client = OkHttpClient()
+            val mediaType = "application/json".toMediaTypeOrNull()
+            val requestBody = """{"model":"claude-3-haiku-20240307","max_tokens":10,"messages":[{"role":"user","content":"Hi"}]}""".toRequestBody(mediaType)
+            
+            val request = Request.Builder()
                 .url("https://api.anthropic.com/v1/messages")
                 .addHeader("x-api-key", apiKey)
                 .addHeader("anthropic-version", "2023-06-01")
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody ?: okhttp3.RequestBody.create(null, ""))
+                .post(requestBody)
                 .build()
 
             val response = client.newCall(request).execute()
@@ -290,8 +295,8 @@ class SecureApiKeyManager @Inject constructor(
 
     private suspend fun validateGeminiKey(apiKey: String): ValidationResult {
         return try {
-            val client = okhttp3.OkHttpClient()
-            val request = okhttp3.Request.Builder()
+            val client = OkHttpClient()
+            val request = Request.Builder()
                 .url("https://generativelanguage.googleapis.com/v1/models?key=$apiKey")
                 .get()
                 .build()
@@ -309,16 +314,16 @@ class SecureApiKeyManager @Inject constructor(
 
     private suspend fun validateLocalEndpoint(endpoint: String): ValidationResult {
         return try {
-            val client = okhttp3.OkHttpClient.Builder()
+            val client = OkHttpClient.Builder()
                 .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
-            val requestBody = okhttp3.MediaType.Companion.toMediaTypeOrNull("application/json")?.let {
-                okhttp3.RequestBody.create(it, """{"model":"llama2","prompt":"Hi","stream":false}""")
-            }
-            val request = okhttp3.Request.Builder()
+            val mediaType = "application/json".toMediaTypeOrNull()
+            val requestBody = """{"model":"llama2","prompt":"Hi","stream":false}""".toRequestBody(mediaType)
+            
+            val request = Request.Builder()
                 .url("$endpoint/api/generate")
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody ?: okhttp3.RequestBody.create(null, ""))
+                .post(requestBody)
                 .build()
 
             val response = client.newCall(request).execute()

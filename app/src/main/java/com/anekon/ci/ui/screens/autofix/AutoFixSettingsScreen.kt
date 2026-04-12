@@ -503,8 +503,10 @@ private fun ProviderOption(
             Icon(
                 imageVector = when (provider) {
                     AIProviderType.MINIMAX_PRO -> Icons.Default.Star
+                    AIProviderType.MINIMAX_FREE -> Icons.Default.Star
                     AIProviderType.OPENAI -> Icons.Default.Psychology
-                    AIProviderType.ANTHROPIC -> Icons.Default.Human
+                    AIProviderType.ANTHROPIC -> Icons.Default.Person
+                    AIProviderType.GEMINI -> Icons.Default.AutoAwesome
                     AIProviderType.LOCAL -> Icons.Default.Computer
                 },
                 contentDescription = null,
@@ -517,15 +519,17 @@ private fun ProviderOption(
                     Text(
                         text = when (provider) {
                             AIProviderType.MINIMAX_PRO -> "MiniMax Pro"
+                            AIProviderType.MINIMAX_FREE -> "MiniMax Free"
                             AIProviderType.OPENAI -> "OpenAI"
                             AIProviderType.ANTHROPIC -> "Anthropic Claude"
+                            AIProviderType.GEMINI -> "Google Gemini"
                             AIProviderType.LOCAL -> "Local / Ollama"
                         },
                         style = MaterialTheme.typography.titleSmall,
                         color = AnekonColors.TextPrimary,
                         fontWeight = FontWeight.Medium
                     )
-                    if (provider == AIProviderType.LOCAL || provider == AIProviderType.OPENAI) {
+                    if (provider == AIProviderType.LOCAL || provider == AIProviderType.OPENAI || provider == AIProviderType.MINIMAX_FREE) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
@@ -544,8 +548,10 @@ private fun ProviderOption(
                 Text(
                     text = when (provider) {
                         AIProviderType.MINIMAX_PRO -> "Modelos avanzados - Pago"
+                        AIProviderType.MINIMAX_FREE -> "MiniMax - Versión gratuita"
                         AIProviderType.OPENAI -> "GPT-3.5/4 - Pruebas"
                         AIProviderType.ANTHROPIC -> "Claude - Pago"
+                        AIProviderType.GEMINI -> "Gemini Pro/Flash"
                         AIProviderType.LOCAL -> "Para estrés"
                     },
                     style = MaterialTheme.typography.bodySmall,
