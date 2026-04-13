@@ -360,12 +360,12 @@ jobs:
           retention-days: 30
 
   # ============================================
-  # JOB 6: AI Code Analysis
+  # JOB 6: AI Code Analysis (Vigilando TODO)
   # ============================================
   ai-analysis:
     name: 🤖 AI Code Analysis
     runs-on: ubuntu-latest
-    needs: [build-debug, test]
+    needs: [build-debug, test, build-release]
     if: failure() || github.event.inputs.force_ai_fix == 'true'
     outputs:
       analysis_result: ${{ steps.analyze.outputs.analysis_result }}
@@ -374,25 +374,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Lint Reports
+      - name: Download Reports
         uses: actions/download-artifact@v4
         with:
-          name: lint-reports
-          path: reports/lint/
-        continue-on-error: true
-
-      - name: Download Test Results
-        uses: actions/download-artifact@v4
-        with:
-          name: test-results
-          path: reports/tests/
-        continue-on-error: true
-
-      - name: Download Build Info
-        uses: actions/download-artifact@v4
-        with:
-          name: build-info
-          path: reports/build/
+          path: reports/
         continue-on-error: true
 
       - name: AI Analysis with MiniMax
@@ -402,27 +387,12 @@ jobs:
           MINIMAX_GROUP_ID: ${{ secrets.MINIMAX_GROUP_ID }}
         run: |
           echo "=== AI Code Analysis Started ==="
+          
+          ERRORS=$(find reports/ -name "*.txt" -o -name "*.xml" -exec grep -hE "error|exception|failed" {} + | head -30 || echo "No detailed logs found")
 
-          ERRORS=""
-          if [ -f "reports/build/build_info.txt" ]; then
-            ERRORS=$(cat reports/build/build_info.txt)
-          fi
-
-          if [ -d "reports/lint" ]; then
-            LINT_ERRORS=$(find reports/lint -name "*.xml" -exec grep -h "error=" {} \; 2>/dev/null | head -20)
-          fi
-
-          if [ -d "reports/tests" ]; then
-            TEST_FAILURES=$(find reports/tests -name "*.xml" -exec grep -l "failures" {} \; 2>/dev/null | head -5)
-          fi
-
-          PROMPT="You are an expert Android/Kotlin developer. Analyze the build failures and provide actionable fixes.
+          PROMPT="You are an expert Android developer. Analyze the build failures and provide actionable fixes.
           BUILD STATUS: ${{ job.status }}
-          BRANCH: ${{ github.ref }}
-          COMMIT: ${{ github.sha }}
-          BUILD INFO: $ERRORS
-          LINT ERRORS: $LINT_ERRORS
-          TEST FAILURES: $TEST_FAILURES
+          ERRORS: $ERRORS
           Please respond in JSON format ONLY: {\"root_cause\":\"...\",\"severity\":\"high\",\"files_to_fix\":[],\"fixes\":[{\"file\":\"\",\"original_code\":\"\",\"fixed_code\":\"\",\"explanation\":\"\"}],\"prevention_tips\":[],\"confidence\":0.95}"
 
           API_RESPONSE=$(curl -s -X POST "https://api.minimax.chat/v1/text/chatcompletion_pro?GroupId=${MINIMAX_GROUP_ID}" \
@@ -432,22 +402,20 @@ jobs:
               \"model\": \"MiniMax-Text-01\",
               \"tokens_to_generate\": 3000,
               \"messages\": [
-                {\"role\": \"system\", \"content\": \"You are an expert Android developer and code debugging specialist. Always respond with valid JSON only.\"},
+                {\"role\": \"system\", \"content\": \"You are an expert Android developer. Always respond with valid JSON only.\"},
                 {\"role\": \"user\", \"content\": \"$PROMPT\"}
               ],
               \"temperature\": 0.2
             }")
 
           if echo "$API_RESPONSE" | jq -e .choices[0].messages > /dev/null 2>&1; then
-            AI_CONTENT=$(echo "$API_RESPONSE" | jq -r '.choices[0].messages[-1].content')
-            echo "$AI_CONTENT" > ai_analysis.json
+            echo "$API_RESPONSE" | jq -r '.choices[0].messages[-1].content' > ai_analysis.json
           else
-            echo "{\"error\": \"API call failed\", \"raw_response\": $(echo $API_RESPONSE | jq -r '.')}" > ai_analysis.json
+            echo "{\"error\": \"API call failed\"}" > ai_analysis.json
           fi
 
           ANALYSIS=$(cat ai_analysis.json | jq -r '.root_cause // "No analysis"')
           HAS_FIX=$(cat ai_analysis.json | jq -r 'if .fixes != null and (.fixes | length) > 0 then "true" else "false" end')
-
           echo "analysis_result=$ANALYSIS" >> $GITHUB_OUTPUT
           echo "has_fix=$HAS_FIX" >> $GITHUB_OUTPUT
 
@@ -459,9 +427,45 @@ jobs:
           retention-days: 30
 
   # ============================================
-  # JOB 7: Apply AI Fixes
+  # JOB 7: Apply AI Fixes (Con Reporte Detallado)
   # ============================================
-  apply-ai-fixes:
+  
+  # ============================================
+  # JOB 8: Create Release
+  # ============================================
+  release:
+    name: 🎉 Create Release
+    runs-on: ubuntu-latest
+    needs: [build-release, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && success()
+    steps:
+      - name: Download Release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+          path: release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.apk
+          name: Release v${{ github.run_number }}
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # JOB 9: Notification & Summary
+  # ============================================
+  notify:
+    name: 📢 Build Summary
+    runs-on: ubuntu-latest
+    needs: [lint, build-debug, test, ai-analysis, apply-ai-fixes, release]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+ apply-ai-fixes:
     name: 🔧 Apply AI Fixes
     runs-on: ubuntu-latest
     needs: ai-analysis
@@ -478,45 +482,58 @@ jobs:
           name: ai-analysis
           path: analysis/
 
-      - name: Apply Fixes
+      - name: Apply Fixes and Generate Report
         run: |
-          echo "=== Applying AI-Generated Fixes ==="
-          cat analysis/ai_analysis.json | jq -r '.'
-
           git config user.name "Anekon AI Bot"
           git config user.email "bot@anekon.dev"
-
           git checkout -b fix/ai-autofix-${{ github.run_number }}
 
-          cat > AI_FIX_REPORT.md << 'REPORT'
+          cat > AI_FIX_REPORT.md << 'EOF'
           # 🤖 AI AutoFix Report
-          Generated by Anekon AI on `date`
+          Generated by Anekon AI on $(date)
           ## Analysis Summary
-          REPORT
-
-          cat analysis/ai_analysis.json | jq -r '.root_cause' >> AI_FIX_REPORT.md
-          echo "" >> AI_FIX_REPORT.md
-          echo "## Severity: $(cat analysis/ai_analysis.json | jq -r '.severity')" >> AI_FIX_REPORT.md
-          echo "## Confidence: $(cat analysis/ai_analysis.json | jq -r '.confidence')%" >> AI_FIX_REPORT.md
-
+          $(jq -r '.root_cause' analysis/ai_analysis.json)
+          ## Recommended Fixes
+          EOF
+          
+          jq -r '.fixes[] | "### File: \(.file)\n**Explanation:** \(.explanation)\n\`\`\`kotlin\n// Fixed:\n\(.fixed_code)\n\`\`\`"' analysis/ai_analysis.json >> AI_FIX_REPORT.md
+          
           git add AI_FIX_REPORT.md
           git commit -m "🤖 docs: AI AutoFix report for build failure [skip ci]"
 
-      - name: Push Fix Branch
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: fix/ai-autofix-${{ github.run_number }}
-
-      - name: Create PR
+      - name: Push and Create PR
         run: |
-          echo "Creating pull request..."
-          PR_BODY="## 🤖 AI AutoFix Report\n\nThis PR was automatically created by Anekon AI.\n\n### Summary\n$(cat analysis/ai_analysis.json | jq -r '.root_cause')\n\n*Generated by Anekon AI Bot*"
-          
-          PR_RESPONSE=$(curl -s -X POST "https://api.github.com/repos/${{ github.repository }}/pulls" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            -d "{\"title\":\"🤖 AI AutoFix: Build Failure Resolution\",\"body\":\"$PR_BODY\",\"head\":\"fix/ai-autofix-${{ github.run_number }}\",\"base\":\"${{ github.ref_name }}\"}")
-          
-          echo "Response: $PR_RESPONSE"
-          
+          jq -r '.fixes[] | "### File: \(.file)\n**Explanation:** \(.explanation)\n         echo "=== ANEKON BUILD SUMMARY ==="
+          echo ""
+          echo "📋 Lint Check: ${{ needs.lint.result }}"
+          echo "🔨 Build Debug: ${{ needs.build-debug.result }}"
+          echo "🧪 Unit Tests: ${{ needs.test.result }}"
+          echo "🤖 AI Analysis: ${{ needs.ai-analysis.result }}"
+          echo "🔧 AI Fixes Applied: ${{ needs.apply-ai-fixes.result }}"
+          echo "🎉 Release Created: ${{ needs.release.result }}"
+          echo ""
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Run #: ${{ github.run_number }}"
+          echo ""
+
+          if [[ "${{ needs.build-debug.result }}" == "success" ]]; then
+            echo "✅ Build completed successfully!"
+          else
+            echo "❌ Build failed. Check logs for details."
+            if [[ "${{ needs.apply-ai-fixes.result }}" == "success" ]]; then
+              echo "🤖 AI fixes have been applied and a PR created."
+            fi
+          fi
+
+      - name: Commit Status Update
+        if: always()
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "Updating PR status..."
+            # Status is automatically updated by GitHub Actions
+          fi
+
+
+```
+
